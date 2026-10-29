@@ -2,7 +2,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
 
 const app = express();
 
@@ -11,15 +10,10 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-// Set MONGODB_URI in Render's Environment settings and in your local .env file.
+const MONGODB_URI = 'mongodb+srv://maheemshahreear2:7VK0LM6JxFpbxzCW@cluster0.urzuizl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+
 async function connectDB() {
-    const mongoUri = mongodb+srv://maheemshahreear2:7VK0LM6JxFpbxzCW@cluster0.urzuizl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0;
-
-    if (!mongoUri) {
-        throw new Error('MONGODB_URI is missing. Add it to your environment variables.');
-    }
-
-    await mongoose.connect(mongoUri);
+    await mongoose.connect(MONGODB_URI);
     console.log('✅ MongoDB Connected');
 }
 
@@ -31,17 +25,21 @@ const medicineSchema = new mongoose.Schema({
     pricePerUnit: { type: Number, required: true },
     unitsAvailable: { type: Number, required: true },
     expiryDate: { type: Date, required: true },
-    // New fields for different medicine types
-    type: { type: String, enum: ['general', 'elderCare', 'momBabyCare', 'rareMedicine'], default: 'general' },
-    
+
+    type: {
+        type: String,
+        enum: ['general', 'elderCare', 'momBabyCare', 'rareMedicine'],
+        default: 'general'
+    },
+
     // Elder Care specific fields
     ageGroup: { type: String },
     specialInstructions: { type: String },
-    
+
     // Mom & Baby Care specific fields
     targetAge: { type: String },
     safetyNotes: { type: String },
-    
+
     // Rare Medicine specific fields
     rarityLevel: { type: String },
     specialHandling: { type: String },
@@ -72,16 +70,17 @@ const customerSchema = new mongoose.Schema({
 
 const Customer = mongoose.model('Customer', customerSchema);
 
-// 📌 Normalize incoming category field
+// Normalize incoming category field
 function normalizeCategory(body) {
     if (!body.category) {
-        if (body.catagory) body.category = body.catagory; // typo fix
-        if (body.type) body.category = body.type;         // alternate name fix
+        if (body.catagory) body.category = body.catagory;
+        if (body.type) body.category = body.type;
     }
+
     return body;
 }
 
-// 📍 GET all medicines
+// GET all medicines
 app.get('/api/medicines', async (req, res) => {
     try {
         const medicines = await Medicine.find();
@@ -91,33 +90,33 @@ app.get('/api/medicines', async (req, res) => {
     }
 });
 
-// 📍 GET medicines by type
+// GET medicines by type
 app.get('/api/medicines/type/:type', async (req, res) => {
     try {
         const { type } = req.params;
-        const medicines = await Medicine.find({ type: type });
+        const medicines = await Medicine.find({ type });
         res.json(medicines);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 GET medicines by category
+// GET medicines by category
 app.get('/api/medicines/category/:category', async (req, res) => {
     try {
         const { category } = req.params;
-        const medicines = await Medicine.find({ category: category });
+        const medicines = await Medicine.find({ category });
         res.json(medicines);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 SEARCH medicines with multiple criteria
+// SEARCH medicines with multiple criteria
 app.get('/api/medicines/search', async (req, res) => {
     try {
         const { query, type, category, minPrice, maxPrice } = req.query;
-        let searchCriteria = {};
+        const searchCriteria = {};
 
         if (query) {
             searchCriteria.$or = [
@@ -129,10 +128,17 @@ app.get('/api/medicines/search', async (req, res) => {
 
         if (type) searchCriteria.type = type;
         if (category) searchCriteria.category = category;
+
         if (minPrice || maxPrice) {
             searchCriteria.pricePerUnit = {};
-            if (minPrice) searchCriteria.pricePerUnit.$gte = parseFloat(minPrice);
-            if (maxPrice) searchCriteria.pricePerUnit.$lte = parseFloat(maxPrice);
+
+            if (minPrice) {
+                searchCriteria.pricePerUnit.$gte = parseFloat(minPrice);
+            }
+
+            if (maxPrice) {
+                searchCriteria.pricePerUnit.$lte = parseFloat(maxPrice);
+            }
         }
 
         const medicines = await Medicine.find(searchCriteria);
@@ -142,7 +148,7 @@ app.get('/api/medicines/search', async (req, res) => {
     }
 });
 
-// 📍 GET medicine statistics by type
+// GET medicine statistics by type
 app.get('/api/medicines/stats/type', async (req, res) => {
     try {
         const stats = await Medicine.aggregate([
@@ -150,7 +156,14 @@ app.get('/api/medicines/stats/type', async (req, res) => {
                 $group: {
                     _id: '$type',
                     count: { $sum: 1 },
-                    totalValue: { $sum: { $multiply: ['$pricePerUnit', '$unitsAvailable'] } },
+                    totalValue: {
+                        $sum: {
+                            $multiply: [
+                                '$pricePerUnit',
+                                '$unitsAvailable'
+                            ]
+                        }
+                    },
                     avgPrice: { $avg: '$pricePerUnit' }
                 }
             },
@@ -163,19 +176,26 @@ app.get('/api/medicines/stats/type', async (req, res) => {
                 }
             }
         ]);
+
         res.json(stats);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 POST add new medicine
+// POST add new medicine
 app.post('/api/medicines', async (req, res) => {
     try {
         const body = normalizeCategory(req.body);
 
-        if (!body.category || typeof body.category !== 'string' || !body.category.trim()) {
-            return res.status(400).json({ message: 'Category is required' });
+        if (
+            !body.category ||
+            typeof body.category !== 'string' ||
+            !body.category.trim()
+        ) {
+            return res.status(400).json({
+                message: 'Category is required'
+            });
         }
 
         const medicine = new Medicine({
@@ -185,7 +205,7 @@ app.post('/api/medicines', async (req, res) => {
             pricePerUnit: body.pricePerUnit,
             unitsAvailable: body.unitsAvailable,
             expiryDate: body.expiryDate,
-            // New fields
+
             type: body.type || 'general',
             ageGroup: body.ageGroup,
             specialInstructions: body.specialInstructions,
@@ -203,7 +223,7 @@ app.post('/api/medicines', async (req, res) => {
     }
 });
 
-// 📍 PUT update a medicine
+// PUT update a medicine
 app.put('/api/medicines/:id', async (req, res) => {
     try {
         const body = normalizeCategory(req.body);
@@ -215,7 +235,9 @@ app.put('/api/medicines/:id', async (req, res) => {
         );
 
         if (!updatedMedicine) {
-            return res.status(404).json({ message: 'Medicine not found' });
+            return res.status(404).json({
+                message: 'Medicine not found'
+            });
         }
 
         res.json(updatedMedicine);
@@ -224,7 +246,7 @@ app.put('/api/medicines/:id', async (req, res) => {
     }
 });
 
-// 📍 PATCH update medicine stock
+// PATCH update medicine stock
 app.patch('/api/medicines/:id', async (req, res) => {
     try {
         const updatedMedicine = await Medicine.findByIdAndUpdate(
@@ -234,7 +256,9 @@ app.patch('/api/medicines/:id', async (req, res) => {
         );
 
         if (!updatedMedicine) {
-            return res.status(404).json({ message: 'Medicine not found' });
+            return res.status(404).json({
+                message: 'Medicine not found'
+            });
         }
 
         res.json(updatedMedicine);
@@ -243,70 +267,88 @@ app.patch('/api/medicines/:id', async (req, res) => {
     }
 });
 
-// 📍 DELETE a medicine
+// DELETE a medicine
 app.delete('/api/medicines/:id', async (req, res) => {
     try {
-        const deletedMedicine = await Medicine.findByIdAndDelete(req.params.id);
+        const deletedMedicine = await Medicine.findByIdAndDelete(
+            req.params.id
+        );
+
         if (!deletedMedicine) {
-            return res.status(404).json({ message: 'Medicine not found' });
+            return res.status(404).json({
+                message: 'Medicine not found'
+            });
         }
-        res.json({ message: 'Medicine deleted successfully' });
+
+        res.json({
+            message: 'Medicine deleted successfully'
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 GET medicines with low stock (units < 5)
+// GET medicines with low stock (units < 5)
 app.get('/api/medicines/low-stock', async (req, res) => {
     try {
         const lowStockMedicines = await Medicine.find({
             unitsAvailable: { $lt: 5 }
-        }).select('name unitsAvailable expiryDate category type preparation');
-        
+        }).select(
+            'name unitsAvailable expiryDate category type preparation'
+        );
+
         res.json(lowStockMedicines);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 GET medicines expiring soon (within 30 days)
+// GET medicines expiring within 30 days
 app.get('/api/medicines/expiring-soon', async (req, res) => {
     try {
         const thirtyDaysFromNow = new Date();
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-        
+        thirtyDaysFromNow.setDate(
+            thirtyDaysFromNow.getDate() + 30
+        );
+
         const expiringSoonMedicines = await Medicine.find({
             expiryDate: { $lte: thirtyDaysFromNow }
-        }).select('name unitsAvailable expiryDate category type preparation');
-        
+        }).select(
+            'name unitsAvailable expiryDate category type preparation'
+        );
+
         res.json(expiringSoonMedicines);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 GET all customers
+// GET all customers
 app.get('/api/customers', async (req, res) => {
     try {
-        const customers = await Customer.find().sort({ createdAt: -1 });
+        const customers = await Customer.find().sort({
+            createdAt: -1
+        });
+
         res.json(customers);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 POST create new customer
+// POST create new customer
 app.post('/api/customers', async (req, res) => {
     try {
         const customer = new Customer(req.body);
         const savedCustomer = await customer.save();
+
         res.status(201).json(savedCustomer);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 });
 
-// 📍 PUT update a customer
+// PUT update a customer
 app.put('/api/customers/:id', async (req, res) => {
     try {
         const updatedCustomer = await Customer.findByIdAndUpdate(
@@ -316,7 +358,9 @@ app.put('/api/customers/:id', async (req, res) => {
         );
 
         if (!updatedCustomer) {
-            return res.status(404).json({ message: 'Customer not found' });
+            return res.status(404).json({
+                message: 'Customer not found'
+            });
         }
 
         res.json(updatedCustomer);
@@ -325,56 +369,74 @@ app.put('/api/customers/:id', async (req, res) => {
     }
 });
 
-// 📍 DELETE a customer
+// DELETE a customer
 app.delete('/api/customers/:id', async (req, res) => {
     try {
-        const deletedCustomer = await Customer.findByIdAndDelete(req.params.id);
+        const deletedCustomer = await Customer.findByIdAndDelete(
+            req.params.id
+        );
+
         if (!deletedCustomer) {
-            return res.status(404).json({ message: 'Customer not found' });
+            return res.status(404).json({
+                message: 'Customer not found'
+            });
         }
-        res.json({ message: 'Customer deleted successfully' });
+
+        res.json({
+            message: 'Customer deleted successfully'
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 GET all transactions
+// GET all transactions
 app.get('/api/transactions', async (req, res) => {
     try {
-        const transactions = await Transaction.find().sort({ date: -1 });
+        const transactions = await Transaction.find().sort({
+            date: -1
+        });
+
         res.json(transactions);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// 📍 POST create new transaction
+// POST create new transaction
 app.post('/api/transactions', async (req, res) => {
     try {
         const transaction = new Transaction(req.body);
         const savedTransaction = await transaction.save();
+
         res.status(201).json(savedTransaction);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 });
 
-// 📍 POST create multiple transactions (for bulk sales)
+// POST create multiple transactions (bulk sales)
 app.post('/api/transactions/bulk', async (req, res) => {
     try {
         const { transactions } = req.body;
+
         if (!Array.isArray(transactions)) {
-            return res.status(400).json({ message: 'Transactions must be an array' });
+            return res.status(400).json({
+                message: 'Transactions must be an array'
+            });
         }
 
-        const savedTransactions = await Transaction.insertMany(transactions);
+        const savedTransactions = await Transaction.insertMany(
+            transactions
+        );
+
         res.status(201).json(savedTransactions);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 });
 
-// Start Server after MongoDB connects successfully
+// Start server after MongoDB connects successfully
 const PORT = process.env.PORT || 5000;
 
 connectDB()
@@ -384,6 +446,10 @@ connectDB()
         });
     })
     .catch((error) => {
-        console.error('❌ MongoDB Connection Error:', error.message);
+        console.error(
+            '❌ MongoDB Connection Error:',
+            error.message
+        );
+
         process.exit(1);
     });
