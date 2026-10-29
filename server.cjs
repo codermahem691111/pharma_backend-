@@ -13,7 +13,7 @@ app.use(express.json());
 // MongoDB Connection
 // Set MONGODB_URI in Render's Environment settings and in your local .env file.
 async function connectDB() {
-    const mongoUri = process.env.MONGODB_URI;
+    const mongoUri = mongodb+srv://maheemshahreear2:7VK0LM6JxFpbxzCW@cluster0.urzuizl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0;
 
     if (!mongoUri) {
         throw new Error('MONGODB_URI is missing. Add it to your environment variables.');
