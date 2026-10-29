@@ -11,12 +11,17 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect('mongodb+srv://maheemshahreear2:7VK0LM6JxFpbxzCW@cluster0.urzuizl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('✅ MongoDB Connected'))
-.catch(err => console.error('❌ MongoDB Connection Error:', err));
+// Set MONGODB_URI in Render's Environment settings and in your local .env file.
+async function connectDB() {
+    const mongoUri = process.env.MONGODB_URI;
+
+    if (!mongoUri) {
+        throw new Error('MONGODB_URI is missing. Add it to your environment variables.');
+    }
+
+    await mongoose.connect(mongoUri);
+    console.log('✅ MongoDB Connected');
+}
 
 // Medicine Schema
 const medicineSchema = new mongoose.Schema({
@@ -369,6 +374,16 @@ app.post('/api/transactions/bulk', async (req, res) => {
     }
 });
 
-// Start Server
+// Start Server after MongoDB connects successfully
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+connectDB()
+    .then(() => {
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server running on port ${PORT}`);
+        });
+    })
+    .catch((error) => {
+        console.error('❌ MongoDB Connection Error:', error.message);
+        process.exit(1);
+    });
